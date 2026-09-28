@@ -1,0 +1,9 @@
+# Large regenerated files (exceed GitHub's 100 MB per-file limit).
+# Run notebooks/02_cleaning_and_eda.ipynb to recreate them.
+data/cleaned/online_retail_cleaned_flagged.csv
+data/cleaned/online_retail_valid_sales.csv
+
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+.DS_Store
