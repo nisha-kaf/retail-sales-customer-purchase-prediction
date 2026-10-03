@@ -10,7 +10,7 @@ Source file: `data/raw/online_retail_II.xlsx` (2 sheets, merged: 1,067,371 rows 
 | Quantity | Integer | Number of units of the product in this order line. Negative values represent cancellations or returns. | `6`, `-2` | 0 | Calculate revenue (with Price), detect cancellations/invalid rows |
 | InvoiceDate | Datetime | Date and time the transaction was recorded. | `2010-12-01 08:26:00` | 0 | Build date-part features (Year, Month, Day, DayOfWeek, Hour), define the feature/target time split for modeling |
 | Price | Float | Unit price of the product (currency as recorded in source, GBP). Values ≤ 0 indicate free items, samples, or data errors. | `2.55` | 0 | Calculate revenue (`TotalAmount = Quantity x Price`) |
-| Customer ID | Float (numeric identifier) | Unique identifier for the customer who placed the order. Missing where the retailer did not capture a customer account for the transaction. | `17850.0` | 243,007 (22.8%) | Build customer-level features and the ML target; rows with missing Customer ID are excluded from customer-level and ML analysis |
+| Customer ID | Integer (numeric identifier) | Unique identifier for the customer who placed the order. Missing where the retailer did not capture a customer account for the transaction. **Stored as float in raw source; converted to integer in cleaned outputs.** | `17850` | 243,007 (22.8%) | Build customer-level features and the ML target; rows with missing Customer ID are excluded from customer-level and ML analysis |
 | Country | Text (object) | Country of the customer/shipping destination. | `United Kingdom`, `Germany` | 0 | Country-level revenue/customer analysis, `IsUK` model feature |
 
 ## Derived Columns Created During Cleaning and Feature Engineering
@@ -26,6 +26,16 @@ Source file: `data/raw/online_retail_II.xlsx` (2 sheets, merged: 1,067,371 rows 
 | TotalAmount | Notebook 2 | `Quantity x Price` — revenue for this order line |
 | Year / Month / MonthName / Day / DayOfWeek / Hour | Notebook 2 | Extracted from `InvoiceDate` |
 | TotalSpend, NumOrders, NumItemsPurchased, NumUniqueProducts, AvgOrderValue, Recency, PurchaseFrequency | Notebook 2 | Full-period customer-level aggregates, used for descriptive EDA only |
+| CustomerLifespanDays | Notebook 2 | Number of days between the customer's first and last purchase in the full period. 0 means single-day buyer. |
 | HistTotalSpend, HistNumOrders, HistNumItems, HistNumUniqueProducts, HistAvgOrderValue, HistRecencyDays, HistLifespanDays, HistPurchaseFrequency, IsUK | Notebook 3 | Historical (feature-period-only) customer features used as ML model inputs |
-| TargetPeriodSpend | Notebook 3 | Customer's spend during the target period; used only to build the label, never as a feature |
-| HighValue | Notebook 3 | ML target: 1 if `TargetPeriodSpend` ≥ 75th percentile among feature-period customers, else 0 |
+| TargetPeriodSpend | Notebook 3 | Customer's spend during the target period; used only to build the label, never as a feature. **Note: 36% of customers have TargetPeriodSpend = 0, indicating churn during the target period.** |
+| HighValue | Notebook 3 | ML target: 1 if `TargetPeriodSpend` >= 75th percentile among feature-period customers, else 0 |
+
+## Data Quality Fixes Applied (2026-10-03)
+
+| Fix | File(s) Affected | Issue | Resolution |
+|---|---|---|---|
+| Customer ID: float → int | `cleaned/customer_features_full_period.csv`, `model_ready/customer_model_ready.csv` | Raw source stores Customer ID as float (`12346.0`), causing messy exports and merge errors | Converted to `int64` in all cleaned/model-ready outputs |
+| HistPurchaseFrequency cap | `model_ready/customer_model_ready.csv` | 69 single-day customers (`HistLifespanDays=0`) had `HistPurchaseFrequency > 1.0` (values up to 4.0), which is mathematically impossible for a single-day buyer | Capped `HistPurchaseFrequency` to `1.0` for all rows where `HistLifespanDays = 0` |
+| CustomerLifespanDays documented | `data/data_dictionary.md` | Column existed in output but was missing from the data dictionary | Added to derived columns table above |
+| TargetPeriodSpend = 0 noted | `data/data_dictionary.md` | 36% churn rate was undocumented, risking model confusion | Added explanatory note in dictionary |
